@@ -43,7 +43,7 @@ if uploaded_file is not None:
 
         # Create the plot
         fig = px.line(filtered_df, x='TIME', y='DATE', hover_data=['DateTime', 'ITEM', selected_metric],
-                      line_group='ITEM', labels={'DATE': 'Date', 'TIME': 'Time'}, color_discrete_sequence=px.colors.qualitative.Alphabet)
+                      line_group='ITEM', labels={'TIME': 'Time', 'DATE': 'Date'}, color_discrete_sequence=px.colors.qualitative.Alphabet)
 
         # Customize layout
         fig.update_layout(
