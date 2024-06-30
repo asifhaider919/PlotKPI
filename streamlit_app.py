@@ -24,13 +24,6 @@ def main():
         time_column = st.sidebar.selectbox("Select Time Column", df.columns)
         metric_column = st.sidebar.selectbox("Select Metric Column", df.columns)
 
-        # Combine date and time into datetime column
-        df['DateTime'] = pd.to_datetime(df[date_column] + ' ' + df[time_column], format='%Y-%m-%d %H:%M:%S')
-
-        # Create a new DataFrame with Date, Time, Metric
-        df_plot = df[[date_column, time_column, metric_column]].copy()
-        df_plot['Time'] = pd.to_datetime(df_plot[time_column], format='%H:%M:%S').dt.time
-
         # Plotting
         if st.button("Plot Metric Series"):
             fig = px.line(df_plot, x='Time', y=metric_column, color=date_column,
