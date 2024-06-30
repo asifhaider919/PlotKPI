@@ -10,7 +10,7 @@ def load_data(file):
 
 # Main function to run the app
 def main():
-    st.title("Metric Series Plot")
+    st.title("Excel Pivot Chart Replication")
 
     # Sidebar for file upload
     uploaded_file = st.file_uploader("Choose an Excel file", type="xlsx")
@@ -19,15 +19,20 @@ def main():
         # Load data
         df = load_data(uploaded_file)
 
-        # Sidebar to select columns
-        date_column = st.sidebar.selectbox("Select Date Column", df.columns)
-        time_column = st.sidebar.selectbox("Select Time Column", df.columns)
-        metric_column = st.sidebar.selectbox("Select Metric Column", df.columns)
+        # Combine date and time into datetime column
+        df['DateTime'] = pd.to_datetime(df['DATE'] + ' ' + df['TIME'], format='%Y-%m-%d %H:%M:%S')
 
-        # Plotting
-        if st.button("Plot Metric Series"):
-            fig = px.line(df_plot, x='Time', y=metric_column, color=date_column,
-                          title="Metric Series Plot", labels={'Time': 'Time', 'value': 'Metric'})
+        # Create a new DataFrame with Date, Time, Metric
+        df_plot = df.melt(id_vars=['DATE', 'TIME', 'ITEM', 'DateTime'],
+                          var_name='Metric', value_name='Value')
+
+        # Plotting all metrics for each item
+        if st.button("Plot All Metrics"):
+            fig = px.line(df_plot, x='DateTime', y='Value', color='Metric',
+                          facet_col='ITEM', facet_col_wrap=3,
+                          labels={'DateTime': 'Date', 'Value': 'Metric Value'},
+                          title="Excel Pivot Chart Replication")
+            fig.update_yaxes(matches=None)  # Ensure y-axes are not shared across facets
             st.plotly_chart(fig)
 
 # Run the app
