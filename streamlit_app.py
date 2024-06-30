@@ -1,154 +1,127 @@
 import streamlit as st
 import pandas as pd
-import folium
-from streamlit_folium import folium_static
+import plotly.express as px
+from datetime import datetime
 
-# Set page configuration
+# Set wide layout
 st.set_page_config(layout="wide")
 
-# Logo image URL (replace with your actual logo URL)
-logo_url = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR5Kj80VCFDZV3eFqa8ppMxXlhxvjkr6XQ85A&s"
-
-# Display the logo at the top of the sidebar
-st.sidebar.image(logo_url, width=200)
-
-# Title of the app
-# st.title("Site and Transaction Map")
-
 # Sidebar for file upload
-uploaded_file_site = st.sidebar.file_uploader("Upload Site Info file", type=["xlsx"])
-uploaded_file_txn = st.sidebar.file_uploader("Upload TXN Info file", type=["xlsx"])
+st.sidebar.header("File Upload")
+uploaded_file = st.sidebar.file_uploader("Choose an Excel file", type="xlsx")
 
-if uploaded_file_site is not None and uploaded_file_txn is not None:
-    try:
-        # Read the uploaded site file into a pandas DataFrame
-        if uploaded_file_site.name.endswith('.xls') or uploaded_file_site.name.endswith('.xlsx'):
-            site_data = pd.read_excel(uploaded_file_site)
+# Default chart height
+default_chart_height = 200
+
+# Default date range based on DataFrame if available
+date_range = None
+
+if uploaded_file is not None:
+    # Load the Excel file
+    df = pd.read_excel(uploaded_file)
+
+    # Convert the DateTime column to pandas datetime type
+    df['DateTime'] = pd.to_datetime(df['DateTime'])
+
+    # Sidebar for controlling chart dimensions
+    st.sidebar.header("Chart Settings")
+    chart_width = st.sidebar.slider("Chart Width", min_value=500, max_value=3000, value=800)
+    chart_height = st.sidebar.slider("Chart Height", min_value=200, max_value=1000, value=default_chart_height)
+
+    # Determine date range from DataFrame
+    if 'DateTime' in df.columns:
+        date_range = (df['DateTime'].min(), df['DateTime'].max())
+
+    # DateTime slider in the sidebar
+    if date_range:
+        start_date, end_date = st.sidebar.slider(
+            "Select Date Range",
+            min_value=datetime.date(date_range[0]),
+            max_value=datetime.date(date_range[1]),
+            value=(datetime.date(date_range[0]), datetime.date(date_range[1]))
+        )
+
+        # Convert start_date and end_date to datetime64[ns]
+        start_date = pd.to_datetime(start_date)
+        end_date = pd.to_datetime(end_date)
+
+    else:
+        st.sidebar.warning("No DateTime column found in the uploaded file.")
+
+    # Ensure the 'items' column exists
+    if 'items' in df.columns:
+        # Multiselect dropdown for selecting metrics
+        all_metrics_option = "All Metrics"
+        available_metrics = df.columns[2:].tolist()
+
+        # Checkbox to display all metrics
+        display_all_metrics = st.sidebar.checkbox("Display All Metrics")
+
+        if display_all_metrics:
+            selected_metrics = available_metrics
         else:
-            site_data = pd.read_csv(uploaded_file_site)
-        
-        # Ensure the required columns are present for site data
-        if 'Lat' not in site_data.columns or 'Lon' not in site_data.columns or 'Site' not in site_data.columns:
-            st.sidebar.error("The uploaded site file must contain 'Site', 'Lat', and 'Lon' columns.")
+            # Search box for filtering metrics by typing
+            filter_text = st.sidebar.text_input("Filter Metrics", "")
+
+            # Filter metrics for autocomplete suggestions
+            filtered_metrics = [metric for metric in available_metrics if filter_text.lower() in metric.lower()]
+
+            # Show autocomplete suggestions in a selectbox
+            selected_metrics = st.sidebar.multiselect("Select Metrics", filtered_metrics, default=filtered_metrics)
+
+        if len(selected_metrics) > 0:
+            # Slider for vertical line position
+            vertical_line_position = st.sidebar.slider(
+                "Vertical Line Position",
+                min_value=0,
+                max_value=len(df) - 1,
+                value=len(df) // 2,
+                format="%d"
+            )
+
+            # Create two columns for displaying charts side by side
+            col1, col2 = st.columns(2)
+
+            # Iterate through each selected metric
+            for i, col in enumerate(selected_metrics, start=1):
+                if col == all_metrics_option:
+                    continue  # Skip "All Metrics" option in individual charts
+
+                # Filter data based on selected date range and metric
+                filtered_df = df[(df['DateTime'] >= start_date) & (df['DateTime'] <= end_date)]
+
+                # Create an interactive plot using Plotly for each metric
+                fig = px.line(filtered_df, x='DateTime', y=col, color='items', labels={'items': col})  # Use column name as legend
+                fig.update_layout(
+                    xaxis_title='',
+                    yaxis_title='',
+                    width=chart_width,
+                    height=chart_height,
+                     margin=dict(l=0, r=40, t=0, b=0),  # Adjust margins as needed
+                    paper_bgcolor='rgb(240, 240, 240)',  # Set paper background color to a lighter gray (RGB values)
+                    plot_bgcolor='rgba(0,0,0,0)',   # Make plot area transparent
+                    legend=dict(
+                        orientation='h',  # Horizontal orientation
+                        yanchor='bottom',  # Anchor legend to the bottom of the plot area
+                        y=1.1,  # Adjust vertical position
+                        xanchor='right',  # Anchor legend to the right of the plot area
+                        x=1,  # Adjust horizontal position
+                        font=dict(color="blue")  # Set legend font color to pink
+                    ),
+                    xaxis=dict(showgrid=True, gridcolor='rgba(0,0,0,0.1)', zeroline=False),  # Show gridlines and customize color
+                    yaxis=dict(showgrid=True, gridcolor='rgba(0,0,0,0.1)', zeroline=False),  # Show gridlines and customize color
+                )
+
+                # Add vertical line to the plot
+                fig.add_vline(x=filtered_df.iloc[vertical_line_position]['DateTime'], line_width=2, line_dash="dash", line_color="red")
+
+                # Alternate placing charts in col1 and col2
+                if i % 2 == 1:
+                    col1.plotly_chart(fig)
+                else:
+                    col2.plotly_chart(fig)
+
         else:
-            # Define categories for the legend based on 'Issue' column
-            site_categories = site_data['Issue'].unique().tolist()
-																											   
-            # Extend colors list to accommodate up to 10 categories
-            colors = ['green', 'blue', 'red', 'purple', 'orange', 'black', 'magenta', 'yellow', 'lime', 'teal']
-
-            # Assign light green to a specific category
-            # Example: Assign 'lightgreen' to the category 'OK'
-            colors[site_categories.index('OK')] = 'green'
-		
-            # Sidebar filter by Site Name
-            search_site_name = st.sidebar.text_input("Enter Site Name")
-
-            # Create initial map centered around the mean location of all site data
-            combined_map = folium.Map(location=[site_data['Lat'].mean(), site_data['Lon'].mean()], zoom_start=7)
-
-            # Display markers for filtered site data or all site data if not filtered
-            if search_site_name:
-                filtered_site_data = site_data[site_data['Site'].str.contains(search_site_name, case=False)]
-                if not filtered_site_data.empty:
-                    # Calculate bounds to zoom to 10km around the first filtered site
-                    first_site = filtered_site_data.iloc[0]
-                    bounds = [(first_site['Lat'] - 0.05, first_site['Lon'] - 0.05), 
-                              (first_site['Lat'] + 0.05, first_site['Lon'] + 0.05)]
-                    
-                    for idx, row in site_data.iterrows():
-                        # Determine marker size
-                        radius = 12 if row['Site'] in filtered_site_data['Site'].values else 6
-
-                        # Determine marker color based on 'Issue' category
-                        category = row['Issue']
-                        color = colors[site_categories.index(category) % len(colors)]
-
-                        # Create a popup message with site information
-                        popup_message = f"<b>Site Name:</b> {row.get('Site', '')}<br>" \
-                                    	f"<b>SITECODE:</b> {row['SITECODE']}<br>" \
-                                    	f"<b>CONFIG:</b> {row['CONFIG']}<br>" \
-                                    	f"<b>Longitude:</b> {row['Lon']}<br>" \
-                                    	f"<b>Latitude:</b> {row['Lat']}<br>" \
-                                    	f"<b>Issue:</b> {row['Issue']}<br>"
-
-                        folium.CircleMarker(
-                            location=[row['Lat'], row['Lon']],
-                            radius=radius,
-                            color=color,
-                            fill=True,
-                            fill_color=color,
-                            fill_opacity=0.7,
-                            popup=folium.Popup(popup_message, max_width=400)
-                        ).add_to(combined_map)
-                    
-                    # Fit the map to the bounds
-                    combined_map.fit_bounds(bounds)
-            else:
-                for idx, row in site_data.iterrows():
-                    # Determine marker color based on 'Issue' category
-                    category = row['Issue']
-                    color = colors[site_categories.index(category) % len(colors)] if category in site_categories else 'blue'
-
-                    # Create a popup message with site information
-                    popup_message = f"<b>Site Name:</b> {row.get('Site', '')}<br>" \
-                                    f"<b>SITECODE:</b> {row['SITECODE']}<br>" \
-                                    f"<b>CONFIG:</b> {row['CONFIG']}<br>" \
-                                    f"<b>Longitude:</b> {row['Lon']}<br>" \
-                                    f"<b>Latitude:</b> {row['Lat']}<br>" \
-                                    f"<b>Issue:</b> {row['Issue']}<br>"
-
-                    folium.CircleMarker(
-                        location=[row['Lat'], row['Lon']],
-                        radius=6,
-                        color=color,
-                        fill=True,
-                        fill_color=color,
-                        fill_opacity=0.7,
-                        popup=folium.Popup(popup_message, max_width=400)
-                    ).add_to(combined_map)
-
-            # Display the legend for site data in the sidebar with colored checkboxes
-            st.sidebar.subheader("Site Map Legend")
-            for idx, category in enumerate(site_categories):
-                color = colors[idx % len(colors)]  # Get color for category
-                # Use HTML and CSS to create colored checkboxes
-                st.sidebar.markdown(f'<span style="color: {color}; font-size: 1.5em">&#9632;</span> {category}', unsafe_allow_html=True)
-				
-            # Read the uploaded TXN file into a pandas DataFrame
-            if uploaded_file_txn.name.endswith('.xls') or uploaded_file_txn.name.endswith('.xlsx'):
-                txn_data = pd.read_excel(uploaded_file_txn)
-            else:
-                txn_data = pd.read_csv(uploaded_file_txn)
-            
-            # Check for required columns for TXN data
-            required_columns_txn = ['Site_A', 'Site_B', 'Lat_A', 'Lon_A', 'Lat_B', 'Lon_B']
-            if all(col in txn_data.columns for col in required_columns_txn):
-                # Convert relevant columns to numeric (in case they are not already numeric)
-                numeric_columns_txn = ['Lat_A', 'Lon_A', 'Lat_B', 'Lon_B']
-                txn_data[numeric_columns_txn] = txn_data[numeric_columns_txn].apply(pd.to_numeric, errors='coerce')
-                
-                # Iterate through rows to draw lines for TXN data
-                for index, row in txn_data.iterrows():
-                    # Skip rows with missing or NaN values in coordinates
-                    if pd.isnull(row[['Lat_A', 'Lon_A', 'Lat_B', 'Lon_B']]).any():
-                        st.sidebar.warning(f"Skipping TXN row {index+1}: Missing coordinates")
-                        continue
-                    
-                    # Add a line from Lat_A/Lon_A to Lat_B/Lon_B
-                    folium.PolyLine(
-                        locations=[(row['Lat_A'], row['Lon_A']), (row['Lat_B'], row['Lon_B'])],
-                        color='#0000FF',  # Change color here
-                        weight=1  # Change line weight here
-                    ).add_to(combined_map)
-                
-
-                # Display the combined map in the Streamlit app
-                # st.subheader("Combined Site and Transaction Map")
-                folium_static(combined_map, width=1200, height=700)
-                
-            else:
-                st.sidebar.warning(f"Required columns {required_columns_txn} not found in the TXN file.")
-    
-    except Exception as e:
-        st.sidebar.error(f"An error occurred while processing the file: {e}")
+            st.warning("Please select at least one metric to display.")
+    else:
+        st.error("'items' column not found in the uploaded file. Please check the column names.")
