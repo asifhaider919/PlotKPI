@@ -27,6 +27,8 @@ if uploaded_file is not None:
 
     # Ensure the required columns are present
     if 'DATE' in df.columns and 'TIME' in df.columns and 'ITEM' in df.columns:
+        # Combine DATE and TIME into a new DateTime column
+        df['DateTime'] = pd.to_datetime(df['DATE'].astype(str) + ' ' + df['TIME'].astype(str))
 
         # Unique items and metrics
         items = df['ITEM'].unique().tolist()
@@ -40,7 +42,7 @@ if uploaded_file is not None:
         filtered_df = df[df['ITEM'] == selected_item]
 
         # Create the plot
-        fig = px.line(filtered_df, x='TIME', y='DATE', hover_data=['Date, 'Time', 'ITEM', selected_metric],
+        fig = px.line(filtered_df, x='TIME', y='DATE', hover_data=['DateTime', 'ITEM', selected_metric],
                       line_group='ITEM', labels={'TIME': 'Time', 'DATE': 'Date'}, color_discrete_sequence=px.colors.qualitative.Alphabet)
 
         # Customize layout
