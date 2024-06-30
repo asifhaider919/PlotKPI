@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from datetime import datetime
 
 # Set wide layout
 st.set_page_config(layout="wide")
@@ -28,6 +27,9 @@ if uploaded_file is not None:
 
     # Ensure the required columns are present
     if 'DATE' in df.columns and 'TIME' in df.columns and 'ITEM' in df.columns:
+        # Combine DATE and TIME into a new DateTime column
+        df['DateTime'] = pd.to_datetime(df['DATE'].astype(str) + ' ' + df['TIME'].astype(str))
+
         # Unique items and metrics
         items = df['ITEM'].unique().tolist()
         metrics = df.columns[3:].tolist()  # Assuming metrics start from the 4th column
@@ -38,9 +40,6 @@ if uploaded_file is not None:
 
         # Filter data based on selected item
         filtered_df = df[df['ITEM'] == selected_item]
-
-        # Convert date and time to datetime format
-        filtered_df['DateTime'] = pd.to_datetime(filtered_df['DATE'].astype(str) + ' ' + filtered_df['TIME'].astype(str))
 
         # Create the plot
         fig = px.line(filtered_df, x='TIME', y='DATE', hover_data=['DateTime', 'ITEM', selected_metric],
