@@ -19,8 +19,13 @@ def main():
         # Load data
         df = load_data(uploaded_file)
 
-        # Combine date and time into datetime column
-        df['DateTime'] = pd.to_datetime(df['DATE'] + ' ' + df['TIME'], format='%Y-%m-%d %H:%M:%S')
+        # Attempt to create DateTime column
+        try:
+            df['DateTime'] = pd.to_datetime(df['DATE'] + ' ' + df['TIME'], format='%Y-%m-%d %H:%M:%S')
+        except TypeError as e:
+            st.write(f"Error details: {e}")
+            st.write(df[['DATE', 'TIME']].head())
+            return
 
         # Create a new DataFrame with Date, Time, Metric
         df_plot = df.melt(id_vars=['DATE', 'TIME', 'ITEM', 'DateTime'],
