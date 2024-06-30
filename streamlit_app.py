@@ -2,72 +2,58 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# Set wide layout
-st.set_page_config(layout="wide")
-
-# Function to read Excel file
-def read_excel_file(uploaded_file):
-    df = pd.read_excel(uploaded_file, engine='openpyxl')  # Adjust engine as needed
+# Function to load data and prepare for visualization
+def load_data(file):
+    df = pd.read_excel(file)  # Adjust for your file type if not Excel
+    
+    # Assuming 'DATE', 'TIME', 'ITEM' are column names, adjust as needed
+    df['DateTime'] = pd.to_datetime(df['DATE'] + ' ' + df['TIME'])  # Combine date and time
+    
     return df
+
+# Streamlit setup
+st.set_page_config(layout="wide")
 
 # Sidebar for file upload
 st.sidebar.header("File Upload")
 uploaded_file = st.sidebar.file_uploader("Choose an Excel file", type="xlsx")
 
-# Default chart height
-default_chart_height = 400
-
-if uploaded_file is not None:
-    # Load the Excel file
-    df = read_excel_file(uploaded_file)
-
-    # Display the loaded dataframe
-    st.subheader("Uploaded Data")
-    st.write(df)
-
-    # Ensure the required columns are present
-    if 'DATE' in df.columns and 'TIME' in df.columns and 'ITEM' in df.columns:
-        # Combine DATE and TIME into a new DateTime column
-        df['DateTime'] = pd.to_datetime(df['DATE'].astype(str) + ' ' + df['TIME'].astype(str))
-
-        # Unique items and metrics
-        items = df['ITEM'].unique().tolist()
-        metrics = df.columns[3:].tolist()  # Assuming metrics start from the 4th column
-
-        # Sidebar for selecting items and metrics
-        selected_item = st.sidebar.selectbox("Select Item", items)
-        selected_metric = st.sidebar.selectbox("Select Metric", metrics)
-
-        # Filter data based on selected item
-        filtered_df = df[df['ITEM'] == selected_item]
-
-        # Create the plot
-        fig = px.line(filtered_df, x='TIME', y='DATE', hover_data=['DateTime', 'ITEM', selected_metric],
-                      line_group='ITEM', labels={'TIME': 'Time', 'DATE': 'Date'}, color_discrete_sequence=px.colors.qualitative.Alphabet)
-
-        # Customize layout
-        fig.update_layout(
-            title=f"{selected_item} - {selected_metric}",
-            xaxis_title='Time',
-            yaxis_title='Date',
-            height=default_chart_height,
-            hovermode="x unified",
-            margin=dict(l=50, r=50, t=50, b=50),
-            legend=dict(
-                title=None,
-                orientation="h",
-                yanchor="bottom",
-                y=-0.25,
-                xanchor="right",
-                x=1
-            )
-        )
-
-        # Display the plot
-        st.plotly_chart(fig)
-
-    else:
-        st.warning("Required columns 'DATE', 'TIME', and 'ITEM' not found in the uploaded file.")
+# Main app logic
+if uploaded_file:
+    df = load_data(uploaded_file)
+    
+    # Pivot the data
+    pivoted_df = df.pivot(index='DateTime', columns='ITEM', values='METRIC')  # Adjust columns as per your data
+    
+    # Prepare data for plotly express
+    pivoted_df.reset_index(inplace=True)  # Reset index to use 'DateTime' as x-axis
+    
+    # Create chart using plotly express
+    fig = px.line(pivoted_df, x='DateTime', y=pivoted_df.columns[1:], title='Metrics by Item over Time')
+    
+    # Customize the chart layout if needed
+    fig.update_layout(
+        xaxis_title='DateTime',
+        yaxis_title='Metrics Value',
+        width=1200,
+        height=600,
+        margin=dict(l=50, r=50, t=50, b=50),  # Adjust margins as needed
+        paper_bgcolor='white',  # Set paper background color
+        plot_bgcolor='white',   # Make plot area background white
+        legend=dict(
+            orientation='h',    # Horizontal legend
+            yanchor='bottom',   # Anchor legend to bottom
+            y=1.02,             # Adjust vertical position
+            xanchor='right',    # Anchor legend to right
+            x=1                 # Adjust horizontal position
+        ),
+        xaxis=dict(showgrid=True, gridcolor='lightgray', zeroline=False),  # Show gridlines and customize color
+        yaxis=dict(showgrid=True, gridcolor='lightgray', zeroline=False)   # Show gridlines and customize color
+    )
+    
+    # Display the chart
+    st.plotly_chart(fig)
 
 else:
-    st.info("Please upload an Excel file.")
+    st.warning("Please upload an Excel file.")
+
